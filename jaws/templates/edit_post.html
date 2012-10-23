@@ -1,0 +1,225 @@
+{% extends "admin_layout.html" %}
+
+{% block cssstyle %}
+    {{ super() }}
+<style>
+
+    .content_repeat_container {
+
+    }
+
+    .content_repeat_container .skeleton {
+        display: none;
+    }
+
+</style>
+{% endblock %}
+
+{% macro block_form(block=None, skeleton=False) %}
+    {% set id = "%%%skeleton%%%" if skeleton else block.id %}
+    <fieldset class="repeat_block {% if skeleton %}skeleton{% endif %}">
+        <input type="hidden" name="block_form[{{ id }}][order]" class="block_id" value="{{ block.id }}" />
+        <input type="hidden" name="block_form[{{ id }}][order]" class="block_order" value="{{ block.order }}" />
+        <legend>Block <span class="title_num"></span></legend>
+        <div>
+            <label>Title</label>
+            <input type="text" name="block_form[{{ id }}][title]" value="{{ block.title }}" />
+        </div>
+        <div>
+            <label>Image</label>
+            <input type="text" name="block_form[{{ id }}][image]" value="{{ block.image }}" />
+        </div>
+        <div>
+            <label>Description</label>
+            <textarea name="block_form[{{ id }}][description]">{{ block.description }}</textarea>
+        </div>
+        <div>
+            <button class="move_up_btn">[^] move up</button>
+            <button class="move_down_btn">[v] move down</button>
+            <button class="delete_btn">[x] delete</button>
+        </div>
+    </fieldset>
+{% endmacro %}
+
+{% block content %}
+
+<form id="tehform" method="POST" action="#">
+    <fieldset>
+        <legend>General</legend>
+        <div>
+            <label>Title</label>
+            <input type="text" />
+        </div>
+        <div>
+            <label>Type</label>
+            <input type="radio" name="type" value="asc" checked="true" /> Ascending List
+            <input type="radio" name="type" value="desc" /> Descending List
+            <input type="radio" name="type" value="hidden" /> List without numbers
+        </div>
+    </fieldset>
+    <fieldset>
+        <legend>Introduction</legend>
+        <div>
+            <label>Image</label>
+            <input type="text" />
+        </div>
+        <div>
+            <label>Description</label>
+            <textarea></textarea>
+        </div>
+    </fieldset>
+    <fieldset class="content_repeat">
+        <legend>Content</legend>
+        <div class="content_repeat_container">
+            {{ block_form(None, True) }}
+            {{ block_form(None, False) }}
+        </div>
+
+        <button class="add_btn">[+] another block</button>
+    </fieldset>
+    <fieldset>
+        <legend>Finished?</legend>
+
+        <input type="submit" value="Save / Publish" />
+        <input type="submit" value="Preview" />
+    </fieldset>
+</form>
+
+{% endblock content %}
+
+{% block js %}
+{{ super() }}
+
+<script type="text/javascript">
+    (function(form) {
+        var $form,
+            $wrapper,
+            $container,
+            $skeleton,
+            $addBtn;
+
+        // debug helper to prevent errors when there's no console
+        var log = function() { if (console && console.log) console.log.apply(window, arguments); };
+
+        // use this to give new blocks some form of a unique ID
+        var new_id = 1;
+
+        // init, called at the bottom so basicly our constructor
+        // bind general event handlers and setup other stuff
+        var init = function() {
+            $form    = $(form);
+            $wrapper = $form.find('.content_repeat');
+
+            // ensure we have the top level elements
+            if (!$form.length || !$wrapper.length) return;
+
+            $container = $wrapper.find('.content_repeat_container');
+            $skeleton  = $wrapper.find('.skeleton');
+            $addBtn    = $wrapper.find('.add_btn');
+
+            // bind current blocks
+            getBlocks().each(function(i, block) { bindBlock(block); });
+
+            $addBtn.on('click', function(e) {
+                addNewBlock();
+                e.preventDefault();
+            });
+
+            $form.find('input[name=type]').on('change', function(e) {
+                reNumber();
+            });
+
+            reNumber();
+        };
+
+        // retrieve all non skeleton blocks
+        var getBlocks = function() {
+            return $container.find('.repeat_block:not(.skeleton)');
+        };
+
+        // get the post type from the form (asc, desc, hidden)
+        var getPostType = function() {
+            return $form.find('input[name=type]:checked').val();
+        };
+
+        // bind event handlers to block
+        var bindBlock = function(block) {
+            var $block = $(block);
+
+            // bind move up
+            $block.find('.move_up_btn').on('click', function(e) {
+                $block.prev().before($block);
+                reNumber();
+
+                e.preventDefault();
+            });
+            // bind move down
+            $block.find('.move_down_btn').on('click', function(e) {
+                $block.next().after($block);
+                reNumber();
+
+                e.preventDefault();
+            });
+            // bind delet
+            $block.find('.delete_btn').on('click', function(e) {
+                if (confirm('Are you sure?')) {
+                    $block.remove();
+                    reNumber();
+                }
+
+                e.preventDefault();
+            });
+        };
+
+        // add a new block
+        var addNewBlock = function() {
+            var id   = 'new_' + (new_id++);
+            var $new = $skeleton.clone().removeClass('skeleton');
+
+            $new.find('*[name]').each(function(i, el) {
+                el.name = el.name.replace('%%%skeleton%%%', id);
+
+            });
+
+            bindBlock($new);
+            $container.append($new);
+            reNumber();
+
+            return $new;
+        }
+
+        // visually renumber the blocks and hide/show the move up/down arrows
+        var reNumber = function() {
+            var type  = getPostType();
+            var total = getBlocks().length;
+
+            getBlocks().each(function(i, block) {
+                // determine and set the title of the block
+                if (type == 'asc') {
+                    $(block).find('.title_num').html('#' + (i+1));
+                } else if (type == 'desc') {
+                    $(block).find('.title_num').html('#' + (total - i));
+                } else {
+                    $(block).find('.title_num').html('');
+                }
+
+                // hide / show up btn
+                if (i == 0) {
+                    $(block).find('.move_up_btn').hide();
+                } else {
+                    $(block).find('.move_up_btn').show();
+                }
+                // hide / show down btn
+                if (i == total-1) {
+                    $(block).find('.move_down_btn').hide();
+                } else {
+                    $(block).find('.move_down_btn').show();
+                }
+            });
+        };
+
+        init();
+   })('#tehform');
+</script>
+
+{% endblock %}
